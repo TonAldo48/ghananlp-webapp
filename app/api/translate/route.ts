@@ -69,16 +69,6 @@ export async function POST(request: Request) {
   }
 }
 
-function getLanguageCode(language: string): string {
-  const languageMap: Record<string, string> = {
-    'twi': 'tw',
-    'ewe': 'ee',
-    'ga': 'gaa',
-    'fante': 'fat',
-    'dagbani': 'dag',
-    'gurene': 'gur',
-    // Add more language mappings as needed
-  }
 
   return languageMap[language.toLowerCase()] || language.toLowerCase()
 } 
