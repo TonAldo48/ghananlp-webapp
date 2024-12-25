@@ -35,15 +35,15 @@ function HistoryItemText({ text }: HistoryItemTextProps) {
   useEffect(() => {
     if (textRef.current) {
       textRef.current.style.height = 'auto'
-      textRef.current.style.height = `${Math.max(100, textRef.current.scrollHeight)}px`
+      textRef.current.style.height = `${Math.max(80, textRef.current.scrollHeight)}px`
     }
   }, [text])
 
   return (
     <div 
       ref={textRef}
-      className="rounded-lg border p-4 overflow-y-auto whitespace-pre-wrap break-words"
-      style={{ maxHeight: '400px' }}
+      className="rounded-lg border p-3 md:p-4 overflow-y-auto whitespace-pre-wrap break-words"
+      style={{ maxHeight: '300px' }}
     >
       <p className="text-sm">{text}</p>
     </div>
@@ -164,9 +164,9 @@ export function TranslationHistory() {
 
   if (history.length === 0) {
     return (
-      <div className="flex h-[600px] items-center justify-center text-center">
+      <div className="flex h-[400px] md:h-[600px] items-center justify-center text-center p-4">
         <div className="space-y-2">
-          <p className="text-lg font-medium">No translation history yet</p>
+          <p className="text-base md:text-lg font-medium">No translation history yet</p>
           <p className="text-sm text-muted-foreground">
             Your translation history will appear here after you translate some audio.
           </p>
@@ -176,18 +176,18 @@ export function TranslationHistory() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6 p-4 md:p-6">
       {history.map((item) => (
         <div
           key={item.id}
-          className="flex flex-col space-y-4 rounded-lg border p-6"
+          className="flex flex-col space-y-4 rounded-lg border p-4 md:p-6"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-medium">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4">
+            <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
+              <span className="text-base md:text-lg font-medium truncate">
                 {item.originalFileName}
               </span>
-              <Badge variant={STATUS_BADGES[item.status].variant}>
+              <Badge variant={STATUS_BADGES[item.status].variant} className="w-fit">
                 {item.status === 'transcribing' || item.status === 'translating' ? (
                   <div className="flex items-center gap-1">
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -198,14 +198,14 @@ export function TranslationHistory() {
                 )}
               </Badge>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">
+            <div className="flex items-center justify-between md:justify-end gap-2">
+              <span className="text-xs md:text-sm text-muted-foreground">
                 {format(new Date(item.timestamp), 'MMM d, yyyy h:mm a')}
               </span>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-destructive"
+                className="h-8 w-8 text-destructive shrink-0"
                 onClick={() => removeFromHistory(item.id)}
               >
                 <Trash2 className="h-4 w-4" />
@@ -213,10 +213,10 @@ export function TranslationHistory() {
             </div>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-4 md:gap-6 md:grid-cols-2">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="font-medium">Original Audio</span>
+                <span className="text-sm font-medium">Original Audio</span>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -226,7 +226,7 @@ export function TranslationHistory() {
                   <Download className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="rounded-lg border p-4 space-y-4">
+              <div className="rounded-lg border p-3 md:p-4 space-y-3 md:space-y-4">
                 <AudioPlayer 
                   src={audioUrls[`${item.id}-original`]}
                   onPlayStateChange={(isPlaying) => {
@@ -244,29 +244,33 @@ export function TranslationHistory() {
             {item.translatedText && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-medium">
+                  <span className="text-sm font-medium">
                     {LANGUAGES[item.targetLanguage!]} Translation
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => handleDownload(item, false)}
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
+                  {item.translatedAudioData && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => handleDownload(item, false)}
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
-                <div className="rounded-lg border p-4 space-y-4">
-                  <AudioPlayer 
-                    src={audioUrls[`${item.id}-translated`]}
-                    onPlayStateChange={(isPlaying) => {
-                      if (isPlaying) {
-                        setPlayingId(`${item.id}-translated`)
-                      } else if (playingId === `${item.id}-translated`) {
-                        setPlayingId(null)
-                      }
-                    }}
-                  />
+                <div className="rounded-lg border p-3 md:p-4 space-y-3 md:space-y-4">
+                  {item.translatedAudioData && (
+                    <AudioPlayer 
+                      src={audioUrls[`${item.id}-translated`]}
+                      onPlayStateChange={(isPlaying) => {
+                        if (isPlaying) {
+                          setPlayingId(`${item.id}-translated`)
+                        } else if (playingId === `${item.id}-translated`) {
+                          setPlayingId(null)
+                        }
+                      }}
+                    />
+                  )}
                   <HistoryItemText text={item.translatedText} />
                 </div>
               </div>

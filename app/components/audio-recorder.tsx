@@ -198,23 +198,23 @@ export function AudioRecorder({ selectedLanguage }: AudioRecorderProps) {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 md:space-y-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-0">
         <div className="flex items-center gap-4">
           <div className={cn(
-            "flex h-12 w-12 items-center justify-center rounded-full transition-colors",
+            "flex h-10 md:h-12 w-10 md:w-12 items-center justify-center rounded-full transition-colors",
             isRecording ? "bg-red-100 text-red-600 animate-pulse" : "bg-slate-100"
           )}>
-            <Mic className="h-6 w-6" />
+            <Mic className="h-5 md:h-6 w-5 md:w-6" />
           </div>
           <div>
-            <h2 className="text-lg font-medium">Voice Recorder</h2>
+            <h2 className="text-base md:text-lg font-medium">Voice Recorder</h2>
             <p className="text-sm text-muted-foreground">
               {isRecording ? "Recording in progress..." : "Ready to record"}
             </p>
           </div>
         </div>
-        <span className="text-2xl font-mono font-medium tracking-wider">
+        <span className="text-xl md:text-2xl font-mono font-medium tracking-wider">
           {formatTime(recordingTime)}
         </span>
       </div>
@@ -225,23 +225,23 @@ export function AudioRecorder({ selectedLanguage }: AudioRecorderProps) {
             size="lg"
             variant={isRecording ? "destructive" : "default"}
             onClick={isRecording ? stopRecording : startRecording}
-            className="h-16 w-16 rounded-full p-0"
+            className="h-14 md:h-16 w-14 md:w-16 rounded-full p-0"
           >
             {isRecording ? (
-              <Square className="h-6 w-6" />
+              <Square className="h-5 md:h-6 w-5 md:w-6" />
             ) : (
-              <Mic className="h-6 w-6" />
+              <Mic className="h-5 md:h-6 w-5 md:w-6" />
             )}
           </Button>
         </div>
 
         {audioUrl && (
           <Card className="w-full">
-            <CardContent className="pt-6">
+            <CardContent className="p-4 md:p-6">
               <div className="space-y-4">
                 <AudioPlayer src={audioUrl} />
 
-                <div className="flex gap-2">
+                <div className="flex flex-col md:flex-row gap-2">
                   <Button
                     className="flex-1"
                     onClick={handleTranscribeAndTranslate}
@@ -258,60 +258,49 @@ export function AudioRecorder({ selectedLanguage }: AudioRecorderProps) {
                         Translating...
                       </>
                     ) : (
-                      'Transcribe & Translate'
+                      "Transcribe & Translate"
                     )}
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      if (isTranscribing || isTranslating) {
-                        toast.error("Please wait for the current process to complete")
-                        return
-                      }
-                      cleanup()
-                      toast.success("Started new recording session")
-                    }}
+                    onClick={cleanup}
+                    disabled={isTranscribing || isTranslating}
                   >
-                    <RotateCcw className="h-4 w-4" />
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Record Again
                   </Button>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
-        {(transcription || translatedText) && (
-          <Card className="w-full">
-            <CardContent className="pt-6 space-y-6">
-              {transcription && (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium">Transcription</h3>
-                  <Textarea
-                    value={transcription}
-                    readOnly
-                    className="min-h-[100px] resize-none"
-                  />
-                </div>
-              )}
-
-              {translatedText && (
-                <div className="space-y-4">
+                {transcription && (
                   <div className="space-y-2">
-                    <h3 className="text-sm font-medium">Translation</h3>
+                    <h3 className="text-sm font-medium">Transcription</h3>
                     <Textarea
-                      value={translatedText}
+                      value={transcription}
                       readOnly
-                      className="min-h-[100px] resize-none"
+                      className="min-h-[80px] resize-none"
                     />
                   </div>
+                )}
 
-                  {translatedAudioUrl && (
-                    <div className="rounded-lg border p-4">
-                      <AudioPlayer src={translatedAudioUrl} />
+                {translatedText && (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-medium">Translation</h3>
+                      <Textarea
+                        value={translatedText}
+                        readOnly
+                        className="min-h-[80px] resize-none"
+                      />
                     </div>
-                  )}
-                </div>
-              )}
+                    {translatedAudioUrl && (
+                      <div className="space-y-2">
+                        <h3 className="text-sm font-medium">Translated Audio</h3>
+                        <AudioPlayer src={translatedAudioUrl} />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         )}

@@ -146,7 +146,7 @@ export default function GuidePage() {
           </Card>
         </div>
 
-        <div className="mt-12 text-center">
+        <div className="mt-12 text-center space-y-4">
           <a 
             href="https://ghananlp.org" 
             target="_blank" 
@@ -156,6 +156,17 @@ export default function GuidePage() {
             Learn more about GhanaNLP's translation services
             <ExternalLink className="h-4 w-4" />
           </a>
+
+          <div className="pt-4 border-t">
+            <a 
+              href="https://github.com/tonaldo48" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Created with <span className="text-red-500">❤️</span> by tonaldo48
+            </a>
+          </div>
         </div>
       </div>
     </div>
