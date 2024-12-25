@@ -17,15 +17,18 @@ export async function POST(request: Request) {
       )
     }
 
+    // Convert the file to a buffer
+    const buffer = Buffer.from(await audioFile.arrayBuffer())
+
     const transcription = await openai.audio.transcriptions.create({
-      file: audioFile,
+      file: new File([buffer], audioFile.name, { type: audioFile.type }),
       model: 'whisper-1',
     })
 
     return NextResponse.json({
       text: transcription.text,
-      language: transcription.language
     })
+
   } catch (error) {
     console.error('Transcription error:', error)
     return NextResponse.json(
