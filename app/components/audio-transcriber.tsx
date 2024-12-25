@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useRef } from "react"
-import { Upload, Loader2, Play, Pause, Download } from "lucide-react"
+import { useState, useRef, useCallback, useEffect } from "react"
+import { Upload, Loader2, RefreshCw } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { useTranslationHistory } from "@/app/hooks/use-translation-history"
+import { AudioPlayer } from "@/app/components/audio-player"
 
 interface AudioTranscriberProps {
   selectedLanguage: string
@@ -20,47 +21,99 @@ export function AudioTranscriber({ selectedLanguage }: AudioTranscriberProps) {
   const [audioUrl, setAudioUrl] = useState<string>("")
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentItemId, setCurrentItemId] = useState<string | null>(null)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const transcriptionRef = useRef<HTMLTextAreaElement>(null)
+  const translationRef = useRef<HTMLTextAreaElement>(null)
   const { addToHistory, updateHistory } = useTranslationHistory()
+
+  // Cleanup function for URLs and state
+  const cleanup = useCallback(() => {
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl)
+    }
+    setAudioFile(null)
+    setTranscription("")
+    setTranslatedText("")
+    setAudioUrl("")
+    setIsPlaying(false)
+    setCurrentItemId(null)
+    setIsTranscribing(false)
+    setIsTranslating(false)
+  }, [audioUrl])
+
+  // Cleanup on unmount only
+  useEffect(() => {
+    return () => {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl)
+      }
+    }
+  }, [audioUrl])
+
+  // Auto-resize textareas when content changes
+  useEffect(() => {
+    if (transcriptionRef.current) {
+      transcriptionRef.current.style.height = 'auto'
+      transcriptionRef.current.style.height = `${Math.max(200, transcriptionRef.current.scrollHeight)}px`
+    }
+  }, [transcription])
+
+  useEffect(() => {
+    if (translationRef.current) {
+      translationRef.current.style.height = 'auto'
+      translationRef.current.style.height = `${Math.max(200, translationRef.current.scrollHeight)}px`
+    }
+  }, [translatedText])
+
+  const fileToBase64 = useCallback(async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const base64 = reader.result as string
+        resolve(base64.split(',')[1]) // Remove data URL prefix
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }, [])
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (file) {
+    if (!file) return
+
+    try {
       if (file.size > 10 * 1024 * 1024) { // 10MB limit
         toast.error("File size must be less than 10MB")
         return
       }
 
-      // Convert file to base64 immediately
-      const base64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader()
-        reader.onloadend = () => {
-          const base64 = reader.result as string
-          resolve(base64.split(',')[1]) // Remove data URL prefix
-        }
-        reader.readAsDataURL(file)
-      })
+      console.log('Processing new file:', file.name)
+      const base64 = await fileToBase64(file)
 
       // Create initial history item
       const id = crypto.randomUUID()
-      addToHistory({
+      console.log('Creating history item:', id)
+      
+      const historyItem = {
         id,
         timestamp: new Date().toISOString(),
         originalFileName: file.name,
         originalAudioData: base64,
         originalAudioType: file.type,
         transcription: "",
-        status: 'transcribing'
-      })
+        status: 'transcribing' as const
+      }
+      
+      addToHistory(historyItem)
       setCurrentItemId(id)
-
-      const url = URL.createObjectURL(file)
       setAudioFile(file)
-      setTranscription("") // Clear previous transcription
-      setTranslatedText("") // Clear previous translation
-      setAudioUrl("") // Clear previous audio URL
-      setIsPlaying(false)
+      console.log('File processed successfully')
+    } catch (error) {
+      console.error('Failed to process file:', error)
+      toast.error("Failed to process file")
     }
+
+    // Clear the input value to allow uploading the same file again
+    event.target.value = ''
   }
 
   const handleTranscribe = async () => {
@@ -68,6 +121,7 @@ export function AudioTranscriber({ selectedLanguage }: AudioTranscriberProps) {
 
     setIsTranscribing(true)
     try {
+      console.log('Starting transcription for:', currentItemId)
       const formData = new FormData()
       formData.append('audio', audioFile)
 
@@ -85,6 +139,7 @@ export function AudioTranscriber({ selectedLanguage }: AudioTranscriberProps) {
         throw new Error(result.error)
       }
 
+      console.log('Transcription successful, updating history')
       setTranscription(result.text)
       updateHistory(currentItemId, {
         transcription: result.text,
@@ -94,6 +149,8 @@ export function AudioTranscriber({ selectedLanguage }: AudioTranscriberProps) {
     } catch (error) {
       console.error('Transcription error:', error)
       toast.error("Failed to transcribe audio")
+      // Update history to show failure
+      updateHistory(currentItemId, { status: 'transcribing' })
     } finally {
       setIsTranscribing(false)
     }
@@ -106,6 +163,7 @@ export function AudioTranscriber({ selectedLanguage }: AudioTranscriberProps) {
     }
 
     setIsTranslating(true)
+    console.log('Starting translation for:', currentItemId)
     updateHistory(currentItemId, { status: 'translating' })
 
     try {
@@ -129,11 +187,17 @@ export function AudioTranscriber({ selectedLanguage }: AudioTranscriberProps) {
         throw new Error(result.error)
       }
 
+      console.log('Translation successful, updating history')
       setTranslatedText(result.translatedText)
       toast.success("Text translated successfully")
 
       // Create audio URL from base64 data
       if (result.audioData) {
+        // Clean up previous audio URL if it exists
+        if (audioUrl) {
+          URL.revokeObjectURL(audioUrl)
+        }
+
         const audioBlob = await fetch(`data:${result.contentType};base64,${result.audioData}`).then(res => res.blob())
         const url = URL.createObjectURL(audioBlob)
         setAudioUrl(url)
@@ -150,35 +214,37 @@ export function AudioTranscriber({ selectedLanguage }: AudioTranscriberProps) {
     } catch (error) {
       console.error('Translation error:', error)
       toast.error("Failed to translate text")
+      // Update history to show failure
+      updateHistory(currentItemId, { status: 'transcribed' })
     } finally {
       setIsTranslating(false)
     }
   }
 
-  const handlePlayPause = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause()
-      } else {
-        audioRef.current.play()
-      }
-      setIsPlaying(!isPlaying)
-    }
-  }
-
-  const handleDownload = () => {
-    if (audioUrl) {
-      const a = document.createElement('a')
-      a.href = audioUrl
-      a.download = `translation-${selectedLanguage}.wav` // or appropriate extension
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-    }
-  }
-
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-medium">Audio Translation</h2>
+        {(audioFile || transcription || translatedText) && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2"
+            onClick={() => {
+              if (isTranscribing || isTranslating) {
+                toast.error("Please wait for the current process to complete")
+                return
+              }
+              cleanup()
+              toast.success("Started new translation")
+            }}
+          >
+            <RefreshCw className="h-4 w-4" />
+            Start New
+          </Button>
+        )}
+      </div>
+
       <div className="space-y-4">
         <div className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8 hover:border-foreground/50 transition-colors">
           <input
@@ -223,6 +289,7 @@ export function AudioTranscriber({ selectedLanguage }: AudioTranscriberProps) {
 
       <div className="space-y-4">
         <Textarea
+          ref={transcriptionRef}
           placeholder="Transcription will appear here..."
           value={transcription}
           onChange={(e) => {
@@ -231,7 +298,8 @@ export function AudioTranscriber({ selectedLanguage }: AudioTranscriberProps) {
               updateHistory(currentItemId, { transcription: e.target.value })
             }
           }}
-          className="min-h-[200px] resize-none p-4"
+          className="min-h-[200px] resize-none p-4 transition-all duration-200"
+          style={{ overflow: 'hidden' }}
         />
 
         {transcription && (
@@ -255,37 +323,20 @@ export function AudioTranscriber({ selectedLanguage }: AudioTranscriberProps) {
         {translatedText && (
           <div className="space-y-4">
             <Textarea
+              ref={translationRef}
               placeholder="Translation will appear here..."
               value={translatedText}
               readOnly
-              className="min-h-[200px] resize-none p-4"
+              className="min-h-[200px] resize-none p-4 transition-all duration-200"
+              style={{ overflow: 'hidden' }}
             />
             
             {audioUrl && (
-              <div className="flex items-center gap-2">
-                <audio ref={audioRef} src={audioUrl} onEnded={() => setIsPlaying(false)} className="hidden" />
-                
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handlePlayPause}
-                  className="h-8 w-8"
-                >
-                  {isPlaying ? (
-                    <Pause className="h-4 w-4" />
-                  ) : (
-                    <Play className="h-4 w-4" />
-                  )}
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleDownload}
-                  className="h-8 w-8"
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
+              <div className="rounded-lg border p-4">
+                <AudioPlayer 
+                  src={audioUrl}
+                  onPlayStateChange={setIsPlaying}
+                />
               </div>
             )}
           </div>

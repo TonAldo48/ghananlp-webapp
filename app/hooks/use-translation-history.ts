@@ -16,44 +16,79 @@ export interface TranslationHistoryItem {
 
 const STORAGE_KEY = 'translation-history'
 
+// Helper function to safely parse JSON with a fallback
+const safeJSONParse = (str: string | null): TranslationHistoryItem[] => {
+  if (!str) return []
+  try {
+    const parsed = JSON.parse(str)
+    return Array.isArray(parsed) ? parsed : []
+  } catch (error) {
+    console.error('Failed to parse history:', error)
+    return []
+  }
+}
+
+// Helper function to safely stringify JSON
+const safeJSONStringify = (data: TranslationHistoryItem[]): string => {
+  try {
+    return JSON.stringify(data)
+  } catch (error) {
+    console.error('Failed to stringify history:', error)
+    return '[]'
+  }
+}
+
 export function useTranslationHistory() {
-  const [history, setHistory] = useState<TranslationHistoryItem[]>([])
-
-  // Load history from localStorage on mount
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      try {
-        setHistory(JSON.parse(stored))
-      } catch (error) {
-        console.error('Failed to parse history:', error)
-        setHistory([])
-      }
+  const [history, setHistory] = useState<TranslationHistoryItem[]>(() => {
+    // Initialize from localStorage during hook initialization
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(STORAGE_KEY)
+      return safeJSONParse(stored)
     }
-  }, [])
+    return []
+  })
 
-  // Save history to localStorage whenever it changes
+  // Save to localStorage whenever history changes
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(history))
+    try {
+      const serialized = safeJSONStringify(history)
+      localStorage.setItem(STORAGE_KEY, serialized)
+      console.log('Saved history to localStorage:', history.length, 'items')
+    } catch (error) {
+      console.error('Failed to save history to localStorage:', error)
+    }
   }, [history])
 
   const addToHistory = (item: TranslationHistoryItem) => {
-    setHistory(prev => [item, ...prev])
+    console.log('Adding item to history:', item)
+    setHistory(prev => {
+      const newHistory = [item, ...prev]
+      return newHistory
+    })
   }
 
   const updateHistory = (id: string, updates: Partial<TranslationHistoryItem>) => {
-    setHistory(prev => prev.map(item => 
-      item.id === id ? { ...item, ...updates } : item
-    ))
+    console.log('Updating history item:', id, updates)
+    setHistory(prev => {
+      const newHistory = prev.map(item =>
+        item.id === id ? { ...item, ...updates } : item
+      )
+      return newHistory
+    })
   }
 
   const clearHistory = () => {
+    console.log('Clearing history')
     setHistory([])
     localStorage.removeItem(STORAGE_KEY)
   }
 
   const removeFromHistory = (id: string) => {
-    setHistory(prev => prev.filter(item => item.id !== id))
+    console.log('Removing item from history:', id)
+    setHistory(prev => {
+      const newHistory = prev.filter(item => item.id !== id)
+      return newHistory
+    })
   }
 
   return {

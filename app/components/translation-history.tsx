@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { format } from "date-fns"
 import { Play, Pause, Download, Trash2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { useTranslationHistory, TranslationHistoryItem } from "@/app/hooks/use-translation-history"
+import { AudioPlayer } from "@/app/components/audio-player"
 
 const LANGUAGES: Record<string, string> = {
   tw: 'Twi',
@@ -24,6 +25,31 @@ const STATUS_BADGES: Record<TranslationHistoryItem['status'], { label: string, v
   translated: { label: 'Translated', variant: 'default' },
 }
 
+interface HistoryItemTextProps {
+  text: string
+}
+
+function HistoryItemText({ text }: HistoryItemTextProps) {
+  const textRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (textRef.current) {
+      textRef.current.style.height = 'auto'
+      textRef.current.style.height = `${Math.max(100, textRef.current.scrollHeight)}px`
+    }
+  }, [text])
+
+  return (
+    <div 
+      ref={textRef}
+      className="rounded-lg border p-4 overflow-y-auto whitespace-pre-wrap break-words"
+      style={{ maxHeight: '400px' }}
+    >
+      <p className="text-sm">{text}</p>
+    </div>
+  )
+}
+
 export function TranslationHistory() {
   const { history, removeFromHistory } = useTranslationHistory()
   const [playingId, setPlayingId] = useState<string | null>(null)
@@ -31,17 +57,33 @@ export function TranslationHistory() {
 
   // Create object URLs for audio data when history changes
   useEffect(() => {
+    console.log('Creating audio URLs for', history.length, 'items')
     const urls: Record<string, string> = {}
     
     history.forEach(item => {
-      // Create URL for original audio
-      const originalBlob = base64ToBlob(item.originalAudioData, item.originalAudioType)
-      urls[`${item.id}-original`] = URL.createObjectURL(originalBlob)
-      
-      // Create URL for translated audio if available
-      if (item.translatedAudioData && item.translatedAudioType) {
-        const translatedBlob = base64ToBlob(item.translatedAudioData, item.translatedAudioType)
-        urls[`${item.id}-translated`] = URL.createObjectURL(translatedBlob)
+      try {
+        // Create URL for original audio
+        const originalBlob = base64ToBlob(item.originalAudioData, item.originalAudioType)
+        urls[`${item.id}-original`] = URL.createObjectURL(originalBlob)
+        console.log('Created URL for original audio:', item.id)
+        
+        // Create URL for translated audio if available
+        if (item.translatedAudioData && item.translatedAudioType) {
+          const translatedBlob = base64ToBlob(item.translatedAudioData, item.translatedAudioType)
+          urls[`${item.id}-translated`] = URL.createObjectURL(translatedBlob)
+          console.log('Created URL for translated audio:', item.id)
+        }
+      } catch (error) {
+        console.error('Failed to create audio URL for item:', item.id, error)
+      }
+    })
+
+    // Clean up old URLs before setting new ones
+    Object.values(audioUrls).forEach(url => {
+      try {
+        URL.revokeObjectURL(url)
+      } catch (error) {
+        console.error('Failed to revoke URL:', url, error)
       }
     })
 
@@ -49,18 +91,29 @@ export function TranslationHistory() {
 
     // Cleanup URLs when component unmounts or history changes
     return () => {
-      Object.values(urls).forEach(url => URL.revokeObjectURL(url))
+      Object.values(urls).forEach(url => {
+        try {
+          URL.revokeObjectURL(url)
+        } catch (error) {
+          console.error('Failed to revoke URL during cleanup:', url, error)
+        }
+      })
     }
   }, [history])
 
   const base64ToBlob = (base64: string, type: string) => {
-    const byteCharacters = atob(base64)
-    const byteNumbers = new Array(byteCharacters.length)
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i)
+    try {
+      const byteCharacters = atob(base64)
+      const byteNumbers = new Array(byteCharacters.length)
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i)
+      }
+      const byteArray = new Uint8Array(byteNumbers)
+      return new Blob([byteArray], { type })
+    } catch (error) {
+      console.error('Failed to convert base64 to blob:', error)
+      throw error
     }
-    const byteArray = new Uint8Array(byteNumbers)
-    return new Blob([byteArray], { type })
   }
 
   const handlePlay = async (item: TranslationHistoryItem, isOriginal: boolean) => {
@@ -164,43 +217,27 @@ export function TranslationHistory() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-medium">Original Audio</span>
-                <div className="flex items-center gap-1">
-                  <audio
-                    data-id={`${item.id}-original`}
-                    src={audioUrls[`${item.id}-original`]}
-                    onEnded={() => setPlayingId(null)}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => {
-                      const audioId = `${item.id}-original`
-                      if (playingId === audioId) {
-                        handlePause(audioId)
-                      } else {
-                        handlePlay(item, true)
-                      }
-                    }}
-                  >
-                    {playingId === `${item.id}-original` ? (
-                      <Pause className="h-4 w-4" />
-                    ) : (
-                      <Play className="h-4 w-4" />
-                    )}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => handleDownload(item, true)}
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => handleDownload(item, true)}
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
               </div>
-              <div className="rounded-lg border p-4">
-                <p className="text-sm">{item.transcription}</p>
+              <div className="rounded-lg border p-4 space-y-4">
+                <AudioPlayer 
+                  src={audioUrls[`${item.id}-original`]}
+                  onPlayStateChange={(isPlaying) => {
+                    if (isPlaying) {
+                      setPlayingId(`${item.id}-original`)
+                    } else if (playingId === `${item.id}-original`) {
+                      setPlayingId(null)
+                    }
+                  }}
+                />
+                <HistoryItemText text={item.transcription} />
               </div>
             </div>
 
@@ -210,43 +247,27 @@ export function TranslationHistory() {
                   <span className="font-medium">
                     {LANGUAGES[item.targetLanguage!]} Translation
                   </span>
-                  <div className="flex items-center gap-1">
-                    <audio
-                      data-id={`${item.id}-translated`}
-                      src={audioUrls[`${item.id}-translated`]}
-                      onEnded={() => setPlayingId(null)}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => {
-                        const audioId = `${item.id}-translated`
-                        if (playingId === audioId) {
-                          handlePause(audioId)
-                        } else {
-                          handlePlay(item, false)
-                        }
-                      }}
-                    >
-                      {playingId === `${item.id}-translated` ? (
-                        <Pause className="h-4 w-4" />
-                      ) : (
-                        <Play className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => handleDownload(item, false)}
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => handleDownload(item, false)}
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
                 </div>
-                <div className="rounded-lg border p-4">
-                  <p className="text-sm">{item.translatedText}</p>
+                <div className="rounded-lg border p-4 space-y-4">
+                  <AudioPlayer 
+                    src={audioUrls[`${item.id}-translated`]}
+                    onPlayStateChange={(isPlaying) => {
+                      if (isPlaying) {
+                        setPlayingId(`${item.id}-translated`)
+                      } else if (playingId === `${item.id}-translated`) {
+                        setPlayingId(null)
+                      }
+                    }}
+                  />
+                  <HistoryItemText text={item.translatedText} />
                 </div>
               </div>
             )}
