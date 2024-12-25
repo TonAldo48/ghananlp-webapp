@@ -17,9 +17,17 @@ const LANGUAGES = [
   { value: 'gur', label: 'Gurene' },
 ] as const
 
-export function LanguageSelector() {
+interface LanguageSelectorProps {
+  onValueChange?: (value: string) => void
+}
+
+export function LanguageSelector({ onValueChange }: LanguageSelectorProps) {
   return (
-    <Select defaultValue="tw">
+    <Select 
+      defaultValue="tw" 
+      onValueChange={onValueChange}
+      data-language-selector
+    >
       <SelectTrigger className="w-full">
         <SelectValue placeholder="Select language" />
       </SelectTrigger>
