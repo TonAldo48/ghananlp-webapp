@@ -68,7 +68,3 @@ export async function POST(request: Request) {
     )
   }
 }
-
-
-  return languageMap[language.toLowerCase()] || language.toLowerCase()
-} 
