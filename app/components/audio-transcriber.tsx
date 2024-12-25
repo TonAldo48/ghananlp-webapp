@@ -18,12 +18,16 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Textarea } from "@/components/ui/textarea"
 
-// Add language options
+// Update language options with correct codes
 const LANGUAGES = [
-  { value: 'twi', label: 'Twi' },
-  { value: 'ewe', label: 'Ewe' },
-  { value: 'ga', label: 'Ga' },
+  { value: 'tw', label: 'Twi' },
+  { value: 'gaa', label: 'Ga' },
+  { value: 'ee', label: 'Ewe' },
+  { value: 'fat', label: 'Fante' },
+  { value: 'dag', label: 'Dagbani' },
+  { value: 'gur', label: 'Gurene' },
 ] as const
 
 interface TranscriptionResult {
@@ -33,12 +37,14 @@ interface TranscriptionResult {
 
 export function AudioTranscriber() {
   const [isTranscribing, setIsTranscribing] = useState(false)
+  const [isTranslating, setIsTranslating] = useState(false)
   const [audioFile, setAudioFile] = useState<File | null>(null)
   const [transcription, setTranscription] = useState<TranscriptionResult | null>(null)
+  const [editedText, setEditedText] = useState<string>('')
   const [translationAudio, setTranslationAudio] = useState<string | null>(null)
-  const [isTranslating, setIsTranslating] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
-  const [selectedLanguage, setSelectedLanguage] = useState<string>('twi')
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('tw')
+  const [translatedText, setTranslatedText] = useState<string | null>(null)
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -62,15 +68,23 @@ export function AudioTranscriber() {
 
       const result = await response.json()
       setTranscription(result)
-      
-      // After transcription, trigger translation
-      if (result.text) {
-        await translateText(result.text)
-      }
+      setEditedText(result.text)
     } catch (error) {
       console.error('Transcription error:', error)
     } finally {
       setIsTranscribing(false)
+    }
+  }
+
+  const handleTranslate = async () => {
+    if (!editedText) return
+    setIsTranslating(true)
+    try {
+      await translateText(editedText)
+    } catch (error) {
+      console.error('Translation error:', error)
+    } finally {
+      setIsTranslating(false)
     }
   }
 
@@ -89,6 +103,9 @@ export function AudioTranscriber() {
       })
 
       const result = await response.json()
+      if (result.translatedText) {
+        setTranslatedText(result.translatedText)
+      }
       if (result.audioData) {
         const audioUrl = `data:${result.contentType};base64,${result.audioData}`
         setTranslationAudio(audioUrl)
@@ -169,47 +186,76 @@ export function AudioTranscriber() {
           </Button>
         </CardContent>
 
-        {(transcription || translationAudio) && (
+        {transcription && (
           <CardFooter className="flex flex-col space-y-4">
-            {transcription && (
-              <Card className="w-full">
-                <CardHeader>
-                  <CardTitle className="text-sm">Transcription</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-gray-600">{transcription.text}</p>
-                </CardContent>
-              </Card>
-            )}
+            <Card className="w-full">
+              <CardHeader>
+                <CardTitle className="text-sm">Edit Transcription</CardTitle>
+                <CardDescription>
+                  Review and edit the transcribed text before translation
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Textarea
+                  value={editedText}
+                  onChange={(e) => setEditedText(e.target.value)}
+                  placeholder="Transcribed text will appear here..."
+                  className="min-h-[100px]"
+                />
+                <Button
+                  onClick={handleTranslate}
+                  disabled={!editedText || isTranslating}
+                  className="w-full"
+                >
+                  {isTranslating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Translating...
+                    </>
+                  ) : (
+                    'Translate'
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
             
-            {translationAudio && (
+            {(translatedText || translationAudio) && (
               <Card className="w-full">
                 <CardHeader>
                   <CardTitle className="text-sm">
-                    Translation Audio ({LANGUAGES.find(l => l.value === selectedLanguage)?.label})
+                    Translation ({LANGUAGES.find(l => l.value === selectedLanguage)?.label})
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <audio 
-                    ref={audioRef}
-                    controls 
-                    className="w-full"
-                    src={translationAudio}
-                  />
-                  <Button
-                    onClick={() => {
-                      const link = document.createElement('a')
-                      link.href = translationAudio
-                      link.download = `translation-${selectedLanguage}.wav`
-                      document.body.appendChild(link)
-                      link.click()
-                      document.body.removeChild(link)
-                    }}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    Download Audio
-                  </Button>
+                  {translatedText && (
+                    <div className="p-4 bg-muted rounded-lg">
+                      <p className="text-sm text-muted-foreground">{translatedText}</p>
+                    </div>
+                  )}
+                  {translationAudio && (
+                    <>
+                      <audio 
+                        ref={audioRef}
+                        controls 
+                        className="w-full"
+                        src={translationAudio}
+                      />
+                      <Button
+                        onClick={() => {
+                          const link = document.createElement('a')
+                          link.href = translationAudio
+                          link.download = `translation-${selectedLanguage}.wav`
+                          document.body.appendChild(link)
+                          link.click()
+                          document.body.removeChild(link)
+                        }}
+                        variant="outline"
+                        className="w-full"
+                      >
+                        Download Audio
+                      </Button>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             )}

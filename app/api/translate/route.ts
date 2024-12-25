@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
-const GHANA_NLP_API = 'https://translation-api.ghananlp.org/tts/v1/tts'
+const GHANA_NLP_TRANSLATE_API = 'https://translation-api.ghananlp.org/v1/translate'
+const GHANA_NLP_TTS_API = 'https://translation-api.ghananlp.org/tts/v1/tts'
 
 export async function POST(request: Request) {
   try {
@@ -13,40 +14,56 @@ export async function POST(request: Request) {
       )
     }
 
-    const languageCode = getLanguageCode(targetLanguage)
-
-    const response = await fetch(GHANA_NLP_API, {
+    // Step 1: Translate text to local language
+    const translateResponse = await fetch(GHANA_NLP_TRANSLATE_API, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Ocp-Apim-Subscription-Key': process.env.GHANA_NLP_API_KEY!,
       },
       body: JSON.stringify({
-        text: text,
-        language: languageCode,
+        "in": text,
+        "lang": `en-${targetLanguage}` // e.g., "en-tw" for English to Twi
       }),
     })
 
-    if (!response.ok) {
-      console.error('Translation API error:', response.statusText)
-      throw new Error(`Translation API error: ${response.statusText}`)
+    if (!translateResponse.ok) {
+      throw new Error(`Translation API error: ${translateResponse.statusText}`)
     }
 
-    // Get the audio data as ArrayBuffer
-    const audioBuffer = await response.arrayBuffer()
-    
-    // Convert to Base64 for transmission
+    const translatedText = await translateResponse.text()
+
+    // Step 2: Convert translated text to speech
+    const ttsResponse = await fetch(GHANA_NLP_TTS_API, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Ocp-Apim-Subscription-Key': process.env.GHANA_NLP_API_KEY!,
+      },
+      body: JSON.stringify({
+        text: translatedText,
+        language: targetLanguage,
+      }),
+    })
+
+    if (!ttsResponse.ok) {
+      throw new Error(`TTS API error: ${ttsResponse.statusText}`)
+    }
+
+    // Get the audio data
+    const audioBuffer = await ttsResponse.arrayBuffer()
     const audioBase64 = Buffer.from(audioBuffer).toString('base64')
 
     return NextResponse.json({ 
+      translatedText,
       audioData: audioBase64,
-      contentType: response.headers.get('content-type') || 'audio/wav'
+      contentType: ttsResponse.headers.get('content-type') || 'audio/wav'
     })
 
   } catch (error) {
     console.error('Translation error:', error)
     return NextResponse.json(
-      { error: 'Error processing audio' },
+      { error: 'Error processing translation' },
       { status: 500 }
     )
   }
@@ -56,7 +73,10 @@ function getLanguageCode(language: string): string {
   const languageMap: Record<string, string> = {
     'twi': 'tw',
     'ewe': 'ee',
-    'ga': 'ga',
+    'ga': 'gaa',
+    'fante': 'fat',
+    'dagbani': 'dag',
+    'gurene': 'gur',
     // Add more language mappings as needed
   }
 
