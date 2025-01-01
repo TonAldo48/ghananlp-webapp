@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { useTranslationHistory } from "@/app/hooks/use-translation-history"
+import { useTranslationLimit } from "@/app/hooks/use-translation-limit"
 import { AudioPlayer } from "@/app/components/audio-player"
 
 interface AudioTranscriberProps {
@@ -24,6 +25,7 @@ export function AudioTranscriber({ selectedLanguage }: AudioTranscriberProps) {
   const transcriptionRef = useRef<HTMLTextAreaElement>(null)
   const translationRef = useRef<HTMLTextAreaElement>(null)
   const { addToHistory, updateHistory } = useTranslationHistory()
+  const { remainingUsage, hasReachedLimit, incrementUsage } = useTranslationLimit()
 
   // Cleanup function for URLs and state
   const cleanup = useCallback(() => {
@@ -162,6 +164,11 @@ export function AudioTranscriber({ selectedLanguage }: AudioTranscriberProps) {
       return
     }
 
+    if (hasReachedLimit) {
+      toast.error("You have reached your translation limit. Please try again later.")
+      return
+    }
+
     setIsTranslating(true)
     console.log('Starting translation for:', currentItemId)
     updateHistory(currentItemId, { status: 'translating' })
@@ -189,6 +196,7 @@ export function AudioTranscriber({ selectedLanguage }: AudioTranscriberProps) {
 
       console.log('Translation successful, updating history')
       setTranslatedText(result.translatedText)
+      incrementUsage() // Increment usage count after successful translation
       toast.success("Text translated successfully")
 
       // Create audio URL from base64 data
@@ -224,7 +232,12 @@ export function AudioTranscriber({ selectedLanguage }: AudioTranscriberProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium">Audio Translation</h2>
+        <div className="space-y-1">
+          <h2 className="text-lg font-medium">Audio Translation</h2>
+          <p className="text-sm text-muted-foreground">
+            {remainingUsage} translations remaining
+          </p>
+        </div>
         {(audioFile || transcription || translatedText) && (
           <Button
             variant="outline"
