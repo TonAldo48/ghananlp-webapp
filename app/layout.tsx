@@ -1,4 +1,5 @@
 import "@/styles/globals.css"
+import { Analytics } from "@vercel/analytics/react"
 import { Metadata, Viewport } from "next"
 import { Toaster } from "sonner"
 
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
           {children}
         </div>
         <Toaster />
+        <Analytics/>
       </body>
     </html>
   )
